@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Relógio de Ponto</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <!-- Bibliotecas necessárias -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    body {font-family: 'Inter', sans-serif; margin:0; background:#f8fafc; color:#1e293b;}
+    header {background:#1e40af; color:white; padding:20px 40px; font-size:20px;
+            display:flex; justify-content:space-between; align-items:center;}
+    main {padding:40px; max-width:700px; margin:auto;}
+    .card {background:white; border-radius:16px; padding:24px;
+           box-shadow:0 6px 20px rgba(0,0,0,0.05);}
+    h2 {margin-bottom:20px; font-size:22px;}
+    .controls {display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px;}
+    button {padding:10px 14px; border-radius:10px; border:1px solid #cbd5e1;
+            background:#3b82f6; color:white; cursor:pointer;}
+    button:hover {background:#2563eb;}
+    .hidden {display:none;}
+    #loginSection {max-width:300px; margin:80px auto; padding:30px; background:white;
+                   border-radius:12px; box-shadow:0 4px 10px rgba(0,0,0,0.1);}
+    #loginSection input {width:100%; padding:10px; margin:10px 0; border-radius:8px; border:1px solid #ccc;}
+    table {width:100%; border-collapse:collapse;}
+    th, td {padding:10px; text-align:center; border-bottom:1px solid #e2e8f0;}
+    th {background:#f1f5f9;}
+  </style>
+</head>
+<body>
+  <header>
+    <div>Bem-vindo, <span id="nomeUsuario"></span></div>
+    <div><img src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEi1vNYeLi25WATo3zrj5vbF4Jkw-MipJYK0m31snRH6XVY4Qd9MgIMNCeUulSJcw2mlcMjiIG__g673Z_GOTQWHMwOZt6THEVxTiJqbcuXrH3g6CtcRV_IwRh5OZ0KptKmQf-BaznDU2F3VzN7QF1Own3fA2_JPST9MsNyTCs9fm135FV1kQ4DDNh16gJEW/s500/logo.jpg" style="height:60px"></div>
+  </header>
+
+  <!-- LOGIN -->
+  <div id="loginSection">
+    <h2>Login</h2>
+    <input id="username" placeholder="Usuário">
+    <input id="password" type="password" placeholder="Senha">
+    <button onclick="login()">Entrar</button>
+  </div>
+
+  <!-- PONTO -->
+  <main id="pontoSection" class="card hidden">
+    <h2>Registro de Ponto</h2>
+    <div class="controls">
+      <button onclick="registrar('Entrada')">Entrada</button>
+      <button onclick="registrar('Saída')">Saída</button>
+      <button onclick="registrar('Intervalo')">Intervalo</button>
+    </div>
+    <h3>Marcações do dia</h3>
+    <table id="tabelaRegistros">
+      <thead><tr><th>Tipo</th><th>Hora</th><th>Localização</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <br>
+    <button onclick="logout()">Sair</button>
+  </main>
+
+<script>
+const users = {
+  admin:{password:"admin123",role:"admin"},
+  joao:{password:"1234",role:"operacional",pis:"123.45678.90-1"},
+  maria:{password:"abcd",role:"operacional",pis:"987.65432.10-9"}
+};
+let currentUser=null;
+
+function login(){
+  const u=document.getElementById("username").value.trim();
+  const p=document.getElementById("password").value.trim();
+  if(users[u] && users[u].password===p){
+    currentUser=u;
+    document.getElementById("nomeUsuario").textContent=u;
+    document.getElementById("loginSection").classList.add("hidden");
+    document.getElementById("pontoSection").classList.remove("hidden");
+    carregarTabela();
+  } else alert("Usuário ou senha inválidos");
+}
+
+function logout(){ location.reload(); }
+
+function carregarTabela(){
+  const tbody=document.querySelector("#tabelaRegistros tbody");
+  tbody.innerHTML="";
+  const dataHoje=new Date().toLocaleDateString();
+  const dados=JSON.parse(localStorage.getItem("registros")||"{}");
+  const dia=dados[currentUser]?.[dataHoje]||{};
+  for(const tipo in dia){
+    if(tipo.startsWith("geo")) continue;
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${tipo}</td><td>${dia[tipo]}</td>
+      <td>${dia["geo"+tipo]?.replace("geo","")||""}</td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+function registrar(tipo){
+  if(!window.jspdf){alert("jsPDF não carregou");return;}
+  const agora=new Date();
+  const data=agora.toLocaleDateString();
+  const hora=agora.toLocaleTimeString();
+  navigator.geolocation.getCurrentPosition(pos=>{
+      const coords=`${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
+      let dados=JSON.parse(localStorage.getItem("registros")||"{}");
+      if(!dados[currentUser]) dados[currentUser]={};
+      if(!dados[currentUser][data]) dados[currentUser][data]={};
+      dados[currentUser][data][tipo]=hora;
+      dados[currentUser][data]["geo"+tipo]=coords;
+      localStorage.setItem("registros",JSON.stringify(dados));
+      carregarTabela();
+      gerarComprovantePDF(tipo,data,hora,coords);
+  }, err=>alert("Erro de geolocalização: "+err.message));
+}
+
+function gerarComprovantePDF(tipo,data,hora,coords){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(14);
+  doc.text("Comprovante de Registro de Ponto", 14, 20);
+  doc.setFontSize(11);
+  doc.text(`Funcionário: ${currentUser}`, 14, 35);
+  doc.text(`PIS: ${users[currentUser]?.pis || "—"}`, 14, 42);
+  doc.text(`Tipo: ${tipo}`, 14, 49);
+  doc.text(`Data: ${data}`, 14, 56);
+  doc.text(`Hora: ${hora}`, 14, 63);
+  doc.text(`Localização: ${coords}`, 14, 70);
+  doc.line(14, 78, 196, 78);
+  doc.text("Assinatura do Funcionário: ___________________________", 14, 90);
+  doc.save(`comprovante_${currentUser}_${tipo}_${data.replace(/\//g,"-")}.pdf`);
+}
+</script>
+</body>
+</html>
