@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <title>Relógio de Ponto</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-  <!-- Bibliotecas necessárias -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
   <style>
@@ -50,7 +49,7 @@
       <button onclick="registrar('Saída')">Saída</button>
       <button onclick="registrar('Intervalo')">Intervalo</button>
     </div>
-    <h3>Marcações do dia</h3>
+    <h3>Última marcação do dia</h3>
     <table id="tabelaRegistros">
       <thead><tr><th>Tipo</th><th>Hora</th><th>Localização</th></tr></thead>
       <tbody></tbody>
@@ -87,11 +86,13 @@ function carregarTabela(){
   const dataHoje=new Date().toLocaleDateString();
   const dados=JSON.parse(localStorage.getItem("registros")||"{}");
   const dia=dados[currentUser]?.[dataHoje]||{};
-  for(const tipo in dia){
-    if(tipo.startsWith("geo")) continue;
-    const tr=document.createElement("tr");
-    tr.innerHTML=`<td>${tipo}</td><td>${dia[tipo]}</td>
-      <td>${dia["geo"+tipo]?.replace("geo","")||""}</td>`;
+  // ► mostra apenas a última marcação
+  const tipos = Object.keys(dia).filter(k => !k.startsWith("geo"));
+  if (tipos.length > 0) {
+    const tipo = tipos[tipos.length - 1];
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${tipo}</td><td>${dia[tipo]}</td>
+                    <td>${dia["geo"+tipo] || ""}</td>`;
     tbody.appendChild(tr);
   }
 }
@@ -111,6 +112,8 @@ function registrar(tipo){
       localStorage.setItem("registros",JSON.stringify(dados));
       carregarTabela();
       gerarComprovantePDF(tipo,data,hora,coords);
+      // ► mensagem de sucesso
+      alert("Marcação registrada com sucesso!");
   }, err=>alert("Erro de geolocalização: "+err.message));
 }
 
